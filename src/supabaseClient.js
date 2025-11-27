@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Estos datos te los da Supabase en Project Settings -> API
-const supabaseUrl = 'https://huuwtbcuzylehuwbajfy.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1dXd0YmN1enlsZWh1d2JhamZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxNTc2MzYsImV4cCI6MjA3OTczMzYzNn0.e8afrXpQnUBj8ma5Ugr71lp6nsZz1aKAlCKj2eBCs7k';
+// 1. Vite busca automáticamente en el archivo .env las variables que empiezan con VITE_
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// 2. Usamos esas variables para conectar
+export const supabase = createClient(supabaseUrl, supabaseKey);s
