@@ -1,43 +1,110 @@
-// UBICACIÓN: src/services/api.js
 import { supabase } from '../supabaseClient';
 
-export const fetchSensorHistory = async () => {
-  try {
-    // 1. Pedimos las lecturas de las últimas 24 horas
-    const { data, error } = await supabase
-      .from('lecturas')
-      .select('*')
-      .order('created_at', { ascending: true }); // Ordenado por fecha
+// ==========================================
+// 1. FUNCIONES PARA OBTENER DATOS (GRÁFICAS)
+// ==========================================
 
-    if (error) throw error;
+export const getReadingsByTime = async (hours = 34) => {
+  const startTime = new Date();
+  startTime.setHours(startTime.getHours() - hours);
 
-    // 2. TRANSFORMACIÓN DE DATOS (De SQL a Gráfica)
-    // El objetivo es agrupar por hora. Ej: "10:00" -> { pH: 7, temp: 24... }
+  const { data, error } = await supabase
+    .from('sensor_readings')
+    .select('timestamp, data')
+    .gte('timestamp', startTime.toISOString())
+    .order('timestamp', { ascending: true });
+
+  if (error) {
+    console.error('Error al obtener lecturas para gráficas:', error);
+    return [];
+  }
+  return data;
+};
+
+// ==========================================
+// 2. FUNCIONES INTERNAS (ALERTAS)
+// ==========================================
+
+// Esta es la función que te faltaba y causaba el error
+async function getAlertsConfig() {
+  const { data, error } = await supabase
+    .from('alerts_config')
+    .select('*')
+    .eq('is_active', true);
+
+  if (error) {
+    console.error('Error fetching alerts config:', error);
+    return [];
+  }
+  return data;
+}
+
+async function getLatestSensorReadings() {
+  const { data, error } = await supabase
+    .from('sensor_readings')
+    .select('*')
+    .order('timestamp', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error) {
+    console.error('Error fetching latest sensor readings:', error);
+    return null;
+  }
+  return data;
+}
+
+// ==========================================
+// 3. LÓGICA PRINCIPAL DE ALERTAS (EXPORTADA)
+// ==========================================
+
+export async function checkSensorReadings() {
+  // Ahora sí encontrará estas funciones porque están definidas arriba
+  const alertsConfigs = await getAlertsConfig();
+  const latestReading = await getLatestSensorReadings();
+
+  if (!latestReading || !alertsConfigs || alertsConfigs.length === 0) {
+    return [];
+  }
+
+  const newNotifications = [];
+  const readingData = latestReading.data || {};
+
+  for (const config of alertsConfigs) {
+    // Mapeo correcto de columnas de tu base de datos
+    const metric = config.parameter;        
+    const min_value = config.threshold_min; 
+    const max_value = config.threshold_max; 
     
-    const groupedData = {};
+    // Buscamos el valor en el JSON usando la métrica configurada
+    const value = readingData[metric]; 
 
-    data.forEach(lectura => {
-      // Convertimos la fecha UTC a hora local legible (Ej: "14:00")
-      const dateObj = new Date(lectura.created_at);
-      const hourKey = dateObj.getHours().toString().padStart(2, '0') + ':00';
+    // Solo evaluamos si el valor existe en esta lectura
+    if (value !== null && value !== undefined) {
+      let isOutOfRange = false;
+      let message = '';
 
-      // Si esa hora no existe en nuestro objeto temporal, la creamos
-      if (!groupedData[hourKey]) {
-        groupedData[hourKey] = { name: hourKey };
+      // Verificamos mínimos
+      if (min_value !== null && value < min_value) {
+        isOutOfRange = true;
+        message = `¡Alerta! ${metric} (${value}) está bajo el mínimo (${min_value}).`;
+      } 
+      // Verificamos máximos
+      else if (max_value !== null && value > max_value) {
+        isOutOfRange = true;
+        message = `¡Alerta! ${metric} (${value}) superó el máximo (${max_value}).`;
       }
 
-      // Mapeamos los tipos de la BD a las llaves que usan tus gráficas
-      if (lectura.tipo === 'Temperatura') groupedData[hourKey].temp = lectura.valor;
-      if (lectura.tipo === 'Humedad') groupedData[hourKey].humedad = lectura.valor;
-      if (lectura.tipo === 'Radiacion') groupedData[hourKey].radiacion = lectura.valor;
-      if (lectura.tipo === 'pH') groupedData[hourKey].pH = lectura.valor;
-    });
-
-    // Convertimos el objeto agrupado en un array para Recharts
-    return Object.values(groupedData);
-
-  } catch (error) {
-    console.error("Error conectando a Supabase:", error);
-    return []; // Retornamos array vacío si falla para que no rompa la app
+      if (isOutOfRange) {
+        newNotifications.push({
+          id: `${latestReading.id}-${metric}`, 
+          type: 'error',
+          title: `Alerta: ${metric}`,
+          message: message,
+        });
+      }
+    }
   }
-};
+
+  return newNotifications;
+}

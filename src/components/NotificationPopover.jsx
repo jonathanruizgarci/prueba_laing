@@ -1,77 +1,99 @@
-// UBICACIÓN: src/components/NotificationPopover.jsx
-import React from 'react';
-import { AlertTriangle, X, Check, Info, User } from 'lucide-react';
+import { Fragment } from 'react';
+import { Popover, Transition } from '@headlessui/react';
+import { Bell, AlertTriangle, Check, Info } from 'lucide-react';
+import { useNotification } from '../hooks/useNotification';
 
-const NotificationPopover = ({ notifications, markAllAsRead }) => {
-  // Calculamos cuántas no leídas hay para el badge azul
-  const unreadCount = notifications.filter(n => !n.read).length;
+const icons = {
+  error: <AlertTriangle size={20} className="text-red-500" />,
+  warning: <AlertTriangle size={20} className="text-orange-500" />,
+  info: <Info size={20} className="text-blue-500" />,
+  success: <Check size={20} className="text-green-500" />,
+};
+
+const NotificationPopover = () => {
+  const { notifications, deleteNotification } = useNotification();
+
+  // Filtramos para mostrar solo las que no han sido resueltas (opcional)
+  const pendingNotifications = notifications; 
 
   return (
-    <div className="absolute top-14 right-4 md:right-8 w-80 md:w-96 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-      
-      {/* HEADER: Título y Badge Azul */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white">
-        <div className="flex items-center gap-2">
-          <h3 className="font-bold text-gray-900">Notificaciones</h3>
-          {unreadCount > 0 && (
-            <span className="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-              {unreadCount} nuevas
-            </span>
-          )}
-        </div>
-        <button className="text-xs text-blue-600 hover:text-blue-700 font-medium">Ver todas</button>
-      </div>
-
-      {/* LISTA: Aquí está el SCROLL (max-h-400px y overflow-y-auto) */}
-      <div className="max-h-[400px] overflow-y-auto">
-        {notifications.length > 0 ? notifications.map(notif => (
-          <div key={notif.id} className={`p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors relative ${!notif.read ? 'bg-blue-50/30' : ''}`}>
-            <div className="flex gap-3">
-              {/* ICONOS SEGÚN TIPO */}
-              <div className="mt-1 flex-shrink-0">
-                {notif.type === 'warning' && <div className="p-2 bg-orange-100 text-orange-600 rounded-full"><AlertTriangle size={16} /></div>}
-                {notif.type === 'alert' && <div className="p-2 bg-red-100 text-red-600 rounded-full"><X size={16} /></div>}
-                {notif.type === 'success' && <div className="p-2 bg-green-100 text-green-600 rounded-full"><Check size={16} /></div>}
-                {notif.type === 'info' && <div className="p-2 bg-blue-100 text-blue-600 rounded-full"><Info size={16} /></div>}
-                {notif.type === 'user' && <div className="p-2 bg-purple-100 text-purple-600 rounded-full"><User size={16} /></div>}
-              </div>
-
-              {/* CONTENIDO TEXTO */}
-              <div className="flex-1">
-                <div className="flex justify-between items-start mb-1">
-                  <h4 className={`text-sm font-semibold ${!notif.read ? 'text-gray-900' : 'text-gray-700'}`}>{notif.title}</h4>
-                  {/* Punto naranja de no leído */}
-                  {!notif.read && <span className="w-2 h-2 bg-orange-500 rounded-full mt-1.5"></span>}
+    <Popover className="relative z-50"> 
+      {({ open }) => (
+        <>
+          <Popover.Button 
+            className={`relative rounded-full p-2.5 transition-all focus:outline-none ${
+               open ? 'bg-blue-100 text-blue-600' : 'text-gray-500 hover:bg-gray-100'
+            }`}
+          >
+            <Bell size={24} />
+            {pendingNotifications.length > 0 && (
+              <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-white">
+                {pendingNotifications.length}
+              </span>
+            )}
+          </Popover.Button>
+          
+          {/* Panel Desplegable */}
+          <Transition
+            as={Fragment}
+            enter="transition ease-out duration-200"
+            enterFrom="opacity-0 translate-y-2"
+            enterTo="opacity-100 translate-y-0"
+            leave="transition ease-in duration-150"
+            leaveFrom="opacity-100 translate-y-0"
+            leaveTo="opacity-0 translate-y-2"
+          >
+            <Popover.Panel className="absolute right-0 mt-4 w-80 sm:w-96 transform px-0 z-50">
+              <div className="overflow-hidden rounded-xl shadow-2xl ring-1 ring-black ring-opacity-5 bg-white">
+                
+                {/* Cabecera */}
+                <div className="bg-gray-50 p-4 border-b border-gray-100 flex justify-between items-center">
+                  <h3 className="text-sm font-bold text-gray-800">Notificaciones</h3>
+                  <span className="text-xs font-medium text-gray-500">
+                    {pendingNotifications.length} nuevas
+                  </span>
                 </div>
-                
-                <p className="text-sm text-gray-600 leading-snug mb-2">{notif.message}</p>
-                
-                {/* BOTONES DE ACCIÓN (Si actionRequired es true) */}
-                {notif.actionRequired && (
-                  <div className="flex gap-2 mb-2 mt-2">
-                    <button className="px-3 py-1 bg-gray-900 text-white text-xs font-medium rounded hover:bg-black transition-colors">
-                        Aceptar
-                    </button>
-                    <button className="px-3 py-1 border border-gray-300 text-gray-700 text-xs font-medium rounded hover:bg-gray-50 transition-colors">
-                        Rechazar
-                    </button>
-                  </div>
-                )}
-                
-                <p className="text-xs text-gray-400">{notif.time}</p>
-              </div>
-            </div>
-          </div>
-        )) : <div className="p-8 text-center text-gray-500"><p>No tienes notificaciones nuevas</p></div>}
-      </div>
 
-      {/* FOOTER: Botón inferior */}
-      <div className="p-2 bg-gray-50 text-center border-t border-gray-100">
-        <button onClick={markAllAsRead} className="text-xs text-gray-500 hover:text-gray-900 font-medium">
-            Marcar todo como leído
-        </button>
-      </div>
-    </div>
+                {/* Lista */}
+                <div className="max-h-[350px] overflow-y-auto">
+                  {pendingNotifications.length > 0 ? (
+                    <div className="divide-y divide-gray-100">
+                      {pendingNotifications.map((notification) => (
+                        <div key={notification.custom_id || notification.id} className="p-4 hover:bg-gray-50 flex gap-3 group transition-colors">
+                          <div className="mt-1 flex-shrink-0">
+                             {icons[notification.type] || <Info size={20} className="text-gray-400" />}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
+                            <p className="text-xs text-gray-600 mt-1">{notification.message}</p>
+                            <p className="text-[10px] text-gray-400 mt-2 text-right">
+                              {new Date(notification.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                          
+                          {/* Botón Resolver */}
+                          <button 
+                            onClick={() => deleteNotification(notification.custom_id)}
+                            className="self-start p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                            title="Marcar como resuelto"
+                          >
+                            <Check size={18} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-gray-500">
+                      <p className="text-sm">No hay notificaciones pendientes.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Popover.Panel>
+          </Transition>
+        </>
+      )}
+    </Popover>
   );
 };
 
